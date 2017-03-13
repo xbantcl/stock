@@ -2,6 +2,10 @@
 # encoding: utf-8
 
 from sqlalchemy import Table, Column, VARCHAR, Integer, Float
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base();
+
 
 class User(Base):
     __tablename__ = 'users'
