@@ -1,14 +1,10 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-from sqlalchemy import Column, VARCHAR, Integer, Float, create_engine, Sequence
+from sqlalchemy import Column, VARCHAR, Integer, Float, DATE
 from sqlalchemy.ext.declarative import declarative_base
 
-mysqlDsn = 'mysql+mysqldb://admin:O!g3L70B%F@172.17.0.4/stock'
-engine = create_engine(mysqlDsn, echo=True)
-
 Base = declarative_base();
-
 
 class User(Base):
     __tablename__ = 'users'
@@ -22,6 +18,8 @@ class StockKiData(Base):
     __tablename__ = 'stock_k_data'
 
     id = Column('id', Integer, primary_key=True)
+    # 股票代码
+    code        = Column('code', VARCHAR(10), server_default = "")
     # 开盘价格
     openPrice   = Column('open_price', Float, server_default = "0")
     # 最高价格
@@ -50,14 +48,8 @@ class StockKiData(Base):
     vMaTwenty   = Column('v_ma_twenty', Float, server_default = "0")
     # 换手率
     turnover    = Column('turnover', Float, server_default = "0")
+    # 日期
+    date        = Column('k_date', DATE)
+    # unix日期
+    timestamp   = Column('timestamp', Integer, server_default = "0")
 
-
-def initDb():
-    Base.metadata.create_all(engine)
-
-def dropDb():
-    Base.metadata.drop_all(engine)
-
-if __name__ == '__main__':
-    dropDb()
-    initDb()
