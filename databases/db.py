@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
+import types
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
 from models import Base
 
-from models import User
 
 class Db(object):
     '''
@@ -26,13 +25,22 @@ class Db(object):
         Base.metadata.drop_all(self.engine)
 
     def getEngine(self):
-        return create_engine(self.mysqlDsn, echo=True)
+        return create_engine(self.mysqlDsn, echo=False)
 
     def getDbsession(self):
         Session = sessionmaker(bind=self.engine)
         return Session()
 
+    def addData(self, insertData):
+        "添加数据"
+        session = self.getDbsession()
+        if types.ListType == type(insertData):
+            session.add_all(insertData)
+        else:
+            session.add(insertData)
+        session.commit()
+
+
 if __name__ == '__main__':
     db = Db()
-    db.dropDb()
     db.initDb()

@@ -7,6 +7,8 @@ import tushare as ts
 from databases import models
 from databases.db import Db
 
+db = Db()
+
 def get_k_data(code):
     """
     获取历史k线图值
@@ -49,18 +51,97 @@ def get_k_data(code):
             timestamp = int(time.mktime(time.strptime(index, "%Y-%m-%d")))
         ))
     if insertData:
-        addData(insertData)
+        db.addData(insertData)
 
-def addData(insertData):
-    "添加数据"
-    db = Db()
+
+def get_all_stock():
+    """
+    获取所有股票数据
+        code,代码
+        name,名称
+        industry,所属行业
+        area,地区
+        pe,市盈率
+        outstanding,流通股本(亿)
+        totals,总股本(亿)
+        totalAssets,总资产(万)
+        liquidAssets,流动资产
+        fixedAssets,固定资产
+        reserved,公积金
+        reservedPerShare,每股公积金
+        esp,每股收益
+        bvps,每股净资
+        pb,市净率
+        timeToMarket,上市日期
+        undp,未分利润
+        perundp, 每股未分配
+        rev,收入同比(%)
+        profit,利润同比(%)
+        gpr,毛利率(%)
+        npr,净利润率(%)
+        holders,股东人数
+    """
+    df = ts.get_stock_basics()
+    if df.empty:
+        return False
+    insertData = []
     session = db.getDbsession()
-    if types.ListType == type(insertData):
-        session.add_all(insertData)
-    else:
-        session.add(insertData)
-    session.commit()
+    for code in df.index:
+        query = session.query(models.Stocks.name).filter(models.Stocks.code == code)
+        # 如果存在则更新
+        if query.first():
+            query.update({
+                models.Stocks.pe: df['pe'][code],
+                models.Stocks.outstanding: df['outstanding'][code],
+                models.Stocks.totals: df['totals'][code],
+                models.Stocks.totalAssets: df['totalAssets'][code],
+                models.Stocks.liquidAssets: df['liquidAssets'][code],
+                models.Stocks.fixedAssets: df['fixedAssets'][code],
+                models.Stocks.reserved: df['reserved'][code],
+                models.Stocks.reservedPerShare: df['reservedPerShare'][code],
+                models.Stocks.esp: df['esp'][code],
+                models.Stocks.bvps: df['bvps'][code],
+                models.Stocks.pb: df['pb'][code],
+                models.Stocks.timeToMarket: df['timeToMarket'][code],
+                models.Stocks.undp: df['undp'][code],
+                models.Stocks.perundp: df['perundp'][code],
+                models.Stocks.rev: df['rev'][code],
+                models.Stocks.profit: df['profit'][code],
+                models.Stocks.gpr: df['gpr'][code],
+                models.Stocks.npr: df['npr'][code],
+                models.Stocks.holders: df['holders'][code],
+            })
+            session.commit()
+            continue
+        insertData.append(models.Stocks(
+            code = code,
+            name = df['name'][code],
+            industry = df['industry'][code],
+            area = df['area'][code],
+            pe = df['pe'][code],
+            outstanding = df['outstanding'][code],
+            totals = df['totals'][code],
+            totalAssets = df['totalAssets'][code],
+            liquidAssets = df['liquidAssets'][code],
+            fixedAssets = df['fixedAssets'][code],
+            reserved = df['reserved'][code],
+            reservedPerShare = df['reservedPerShare'][code],
+            esp = df['esp'][code],
+            bvps = df['bvps'][code],
+            pb = df['pb'][code],
+            timeToMarket = df['timeToMarket'][code],
+            undp = df['undp'][code],
+            perundp = df['perundp'][code],
+            rev = df['rev'][code],
+            profit = df['profit'][code],
+            gpr = df['gpr'][code],
+            npr = df['npr'][code],
+            holders = df['holders'][code],
+        ))
 
+    if insertData:
+        db.addData(insertData)
+    return True
 
 if __name__ == '__main__':
-    get_k_data('000838')
+    get_all_stock()
