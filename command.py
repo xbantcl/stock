@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import types
 import time
 import tushare as ts
 from databases import models
 from databases.db import Db
+from utils import helper
 
 db = Db()
 
@@ -143,5 +143,48 @@ def get_all_stock():
         db.addData(insertData)
     return True
 
+def get_index():
+    """
+    获取大盘实时行情
+
+    code:指数代码
+    name:指数名称
+    change:涨跌幅
+    open:开盘点位
+    preclose:昨日收盘点位
+    close:收盘点位
+    high:最高点位
+    low:最低点位
+    volume:成交量(手)
+    amount:成交金额（亿元）
+    """
+    try:
+        df = ts.get_index()
+        insertData = []
+        timestamp = int(time.time())
+        date = time.strftime("%Y-%m-%d", time.localtime(timestamp))
+
+        for index in df.index:
+            insertData.append(models.Index(
+                code = df['code'][index],
+                name = df['name'][index],
+                change = df['change'][index],
+                open = df['open'][index],
+                preclose = df['preclose'][index],
+                close = df['close'][index],
+                high = df['high'][index],
+                low = df['low'][index],
+                volume = df['volume'][index],
+                amount = df['amount'][index],
+                date = date,
+                timestamp = timestamp
+            ))
+        if insertData:
+            db.addData(insertData)
+    except Exception, e:
+        helper.log(e)
+
+
+
 if __name__ == '__main__':
-    get_all_stock()
+    get_index()

@@ -110,3 +110,21 @@ class StockPe(Base):
     gpr = Column('gpr', Float, server_default = "0") # 毛利率(%)
     npr = Column('npr', Float, server_default = "0") # 净利润率(%)
     holders = Column('holders', Float, server_default = "0") # 股东人数
+
+class Index(Base):
+    "大盘信息"
+    __tablename__ = 'index_total'
+
+    id = Column('id', Integer, primary_key=True)
+    code = Column('code', VARCHAR(10), server_default = "") # 指数代码
+    name = Column('name', VARCHAR(64), server_default = "") # 指数名称
+    change = Column('change', Float, server_default = "0") # 涨跌幅
+    open = Column('open', Float, server_default = "0") # 开盘点位
+    preclose = Column('preclose', Float, server_default = "0") # 昨日收盘点位
+    close = Column('close', Float, server_default = "0") # 收盘点位
+    high = Column('high', Float, server_default = "0") # 最高点位
+    low = Column('low', Float, server_default = "0") # 最低点位
+    volume = Column('volume', Float, server_default = "0") # 成交量(手)
+    amount = Column('amount', Float, server_default = "0") # 成交金额(亿元)
+    date = Column('k_date', DATE)
+    timestamp = Column('timestamp', Integer, server_default = "0")
