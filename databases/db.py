@@ -14,7 +14,7 @@ class Db(object):
 
     def __init__(self):
         "初始化数据库引擎"
-        self.mysqlDsn = 'mysql+mysqldb://admin:O!g3L70B%F@172.17.0.4/stock'
+        self.mysqlDsn = 'mysql+mysqldb://admin:O!g3L70B%F@172.17.0.2/stock'
         self.engine = self.getEngine()
 
     def initDb(self):

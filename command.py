@@ -2,14 +2,16 @@
 # encoding: utf-8
 
 import time
+import sys
 import tushare as ts
 from databases import models
 from databases.db import Db
 from utils import helper
 
+
 db = Db()
 
-def get_k_data(code):
+def get_k_data():
     """
     获取历史k线图值
         date：日期
@@ -28,28 +30,37 @@ def get_k_data(code):
         v_ma20:20日均量
         turnover:换手率[注：指数无此项]
     """
-    df = ts.get_hist_data(code)
-    insertData = []
-    for index in df.index:
-        insertData.append(models.StockKiData(
-            code = code,
-            openPrice = df['open'][index],
-            highPrice = df['high'][index],
-            closePrice = df['close'][index],
-            lowPrice = df['low'][index],
-            volume = df['volume'][index],
-            priceChange = df['price_change'][index],
-            pChange = df['p_change'][index],
-            maFive = df['ma5'][index],
-            maTen = df['ma10'][index],
-            maTwenty = df['ma20'][index],
-            vMaFive = df['v_ma5'][index],
-            vMaTen = df['v_ma10'][index],
-            vMaTwenty = df['v_ma20'][index],
-            turnover = df['turnover'][index],
-            date = index,
-            timestamp = int(time.mktime(time.strptime(index, "%Y-%m-%d")))
-        ))
+    df = ts.get_stock_basics()
+    if df.empty:
+        return False
+    print len(df.index)
+    sys.exit()
+    for code in df.index:
+        df = ts.get_hist_data(code)
+        insertData = []
+        for index in df.index:
+            insertData.append(models.StockKiData(
+                code = code,
+                openPrice = df['open'][index],
+                highPrice = df['high'][index],
+                closePrice = df['close'][index],
+                lowPrice = df['low'][index],
+                volume = df['volume'][index],
+                priceChange = df['price_change'][index],
+                pChange = df['p_change'][index],
+                maFive = df['ma5'][index],
+                maTen = df['ma10'][index],
+                maTwenty = df['ma20'][index],
+                vMaFive = df['v_ma5'][index],
+                vMaTen = df['v_ma10'][index],
+                vMaTwenty = df['v_ma20'][index],
+                turnover = df['turnover'][index],
+                date = index,
+                timestamp = int(time.mktime(time.strptime(index, "%Y-%m-%d")))
+            ))
+        if len(insertData) >= 100:
+            db.addData(insertData)
+            insertData = []
     if insertData:
         db.addData(insertData)
 
@@ -138,7 +149,9 @@ def get_all_stock():
             npr = df['npr'][code],
             holders = df['holders'][code],
         ))
-
+        if len(insertData) >= 100:
+            db.addData(insertData)
+            insertData = []
     if insertData:
         db.addData(insertData)
     return True
@@ -187,4 +200,4 @@ def get_index():
 
 
 if __name__ == '__main__':
-    get_index()
+    get_k_data()
