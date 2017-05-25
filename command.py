@@ -3,15 +3,86 @@
 
 import time
 import sys
+import datetime
 import tushare as ts
 from databases import models
 from databases.db import Db
 from utils import helper
-
+from sqlalchemy import and_
 
 db = Db()
 
-def get_k_data():
+def updateKiData():
+    '''
+    更新股票
+    '''
+    session = db.getDbsession()
+    allStocks = session.query(models.Stocks.code).all()
+    insertData = []
+    timestamp = int(time.time())
+    curDate = time.strftime("%Y-%m-%d", time.localtime(timestamp))
+    for item in allStocks:
+        code = item[0]
+        query = session.query(models.StockKiData.code).filter(and_(models.StockKiData.code == code, models.StockKiData.date == curDate))
+
+        isRealtime = True
+        try:
+            #大盘结束则取完整历史数据
+            if datetime.datetime.now().hour > 15:
+                df = ts.get_hist_data(code, curDate)
+                isRealtime = False
+            else:
+                # 获取实时数据,数据不完整
+                df = ts.get_realtime_quotes(code)
+        except Exception, e:
+            helper.log('updateKiData stock:{:^8}fail'.format(code))
+            continue
+
+        if query.first():
+            if not isRealtime:
+                query.update({
+                    models.StockKiData.openPrice: df['open'][curDate],
+                    models.StockKiData.highPrice: df['high'][curDate],
+                    models.StockKiData.closePrice: df['close'][curDate],
+                    models.StockKiData.lowPrice: df['low'][curDate],
+                    models.StockKiData.volume: df['volume'][curDate],
+                    models.StockKiData.priceChange:df['price_change'][curDate],
+                    models.StockKiData.pChange: df['p_change'][curDate],
+                    models.StockKiData.maFive: df['ma5'][curDate],
+                    models.StockKiData.maTen: df['ma10'][curDate],
+                    models.StockKiData.maTwenty: df['ma20'][curDate],
+                    models.StockKiData.vMaFive: df['v_ma5'][curDate],
+                    models.StockKiData.vMaTen: df['v_ma10'][curDate],
+                    models.StockKiData.vMaTwenty: df['v_ma20'][curDate],
+                    models.StockKiData.turnover: df['turnover'][curDate]
+                })
+            else:
+                query.update({
+                    models.StockKiData.openPrice: df['open'][0],
+                    models.StockKiData.highPrice: df['high'][0],
+                    models.StockKiData.closePrice: df['price'][0],
+                    models.StockKiData.lowPrice: df['low'][0],
+                    models.StockKiData.volume: df['volume'][0],
+                })
+            session.commit()
+        else:
+            insertData.append(models.StockKiData(
+                code = code,
+                openPrice = df['open'][0],
+                highPrice = df['high'][0],
+                closePrice = df['price'][0],
+                lowPrice = df['low'][0],
+                volume = df['volume'][0],
+                date = df['date'][0],
+                timestamp = int(time.mktime(time.strptime(df['date'][0], '%Y-%m-%d')))
+            ))
+            if len(insertData) >= 100:
+                db.addData(insertData)
+                insertData = []
+    if insertData:
+        db.addData(insertData)
+
+def initKiData():
     """
     获取历史k线图值
         date：日期
@@ -31,13 +102,16 @@ def get_k_data():
         turnover:换手率[注：指数无此项]
     """
     df = ts.get_stock_basics()
+    session = db.getDbsession()
     if df.empty:
         return False
-    print len(df.index)
-    sys.exit()
+    insertData = []
     for code in df.index:
+        # 如果不是初始化数据则查询是否有该数据
         df = ts.get_hist_data(code)
-        insertData = []
+        if df.empty:
+            helper.log('lost ' + code)
+            continue
         for index in df.index:
             insertData.append(models.StockKiData(
                 code = code,
@@ -197,7 +271,9 @@ def get_index():
     except Exception, e:
         helper.log(e)
 
-
+def calcUpOrDownPercent(beforeDay = 3):
+    session = db.getDbsession()
+    allStocks = session.query(models.StockKiData.code, models.StockKiData.close).filter()
 
 if __name__ == '__main__':
-    get_k_data()
+    updateKiData()
