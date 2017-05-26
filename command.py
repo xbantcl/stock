@@ -8,7 +8,7 @@ import tushare as ts
 from databases import models
 from databases.db import Db
 from utils import helper
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 
 db = Db()
 
@@ -21,66 +21,82 @@ def updateKiData():
     insertData = []
     timestamp = int(time.time())
     curDate = time.strftime("%Y-%m-%d", time.localtime(timestamp))
+    codeList = []
+    count = 0
+    count1 = 0
     for item in allStocks:
         code = item[0]
-        query = session.query(models.StockKiData.code).filter(and_(models.StockKiData.code == code, models.StockKiData.date == curDate))
 
         isRealtime = True
         try:
             #大盘结束则取完整历史数据
             if datetime.datetime.now().hour > 15:
                 df = ts.get_hist_data(code, curDate)
+                if df.empty:
+                    continue
                 isRealtime = False
             else:
-                # 获取实时数据,数据不完整
-                df = ts.get_realtime_quotes(code)
+                codeList.append(code)
+                count += 1
+                if len(codeList) >= 30 or (count == len(allStocks) and codeList):
+                    # 获取实时数据,数据不完整
+                    df = ts.get_realtime_quotes(codeList)
+                    codeList = []
+                else:
+                    continue
         except Exception, e:
             helper.log('updateKiData stock:{:^8}fail'.format(code))
             continue
 
-        if query.first():
-            if not isRealtime:
-                query.update({
-                    models.StockKiData.openPrice: df['open'][curDate],
-                    models.StockKiData.highPrice: df['high'][curDate],
-                    models.StockKiData.closePrice: df['close'][curDate],
-                    models.StockKiData.lowPrice: df['low'][curDate],
-                    models.StockKiData.volume: df['volume'][curDate],
-                    models.StockKiData.priceChange:df['price_change'][curDate],
-                    models.StockKiData.pChange: df['p_change'][curDate],
-                    models.StockKiData.maFive: df['ma5'][curDate],
-                    models.StockKiData.maTen: df['ma10'][curDate],
-                    models.StockKiData.maTwenty: df['ma20'][curDate],
-                    models.StockKiData.vMaFive: df['v_ma5'][curDate],
-                    models.StockKiData.vMaTen: df['v_ma10'][curDate],
-                    models.StockKiData.vMaTwenty: df['v_ma20'][curDate],
-                    models.StockKiData.turnover: df['turnover'][curDate]
-                })
+        for index in df.index:
+            if isRealtime:
+                code = df['code'][index]
+            query = session.query(models.StockKiData.code).filter(and_(models.StockKiData.code == code, models.StockKiData.date == curDate))
+            if query.first():
+                if not isRealtime:
+                    query.update({
+                        models.StockKiData.openPrice: df['open'][curDate],
+                        models.StockKiData.highPrice: df['high'][curDate],
+                        models.StockKiData.closePrice: df['close'][curDate],
+                        models.StockKiData.lowPrice: df['low'][curDate],
+                        models.StockKiData.volume: df['volume'][curDate],
+                        models.StockKiData.priceChange:df['price_change'][curDate],
+                        models.StockKiData.pChange: df['p_change'][curDate],
+                        models.StockKiData.maFive: df['ma5'][curDate],
+                        models.StockKiData.maTen: df['ma10'][curDate],
+                        models.StockKiData.maTwenty: df['ma20'][curDate],
+                        models.StockKiData.vMaFive: df['v_ma5'][curDate],
+                        models.StockKiData.vMaTen: df['v_ma10'][curDate],
+                        models.StockKiData.vMaTwenty: df['v_ma20'][curDate],
+                        models.StockKiData.turnover: df['turnover'][curDate]
+                    })
+                else:
+                    query.update({
+                        models.StockKiData.openPrice: df['open'][index],
+                        models.StockKiData.highPrice: df['high'][index],
+                        models.StockKiData.closePrice: df['price'][index],
+                        models.StockKiData.lowPrice: df['low'][index],
+                        models.StockKiData.volume: df['volume'][index],
+                    })
+                session.commit()
             else:
-                query.update({
-                    models.StockKiData.openPrice: df['open'][0],
-                    models.StockKiData.highPrice: df['high'][0],
-                    models.StockKiData.closePrice: df['price'][0],
-                    models.StockKiData.lowPrice: df['low'][0],
-                    models.StockKiData.volume: df['volume'][0],
-                })
-            session.commit()
-        else:
-            insertData.append(models.StockKiData(
-                code = code,
-                openPrice = df['open'][0],
-                highPrice = df['high'][0],
-                closePrice = df['price'][0],
-                lowPrice = df['low'][0],
-                volume = df['volume'][0],
-                date = df['date'][0],
-                timestamp = int(time.mktime(time.strptime(df['date'][0], '%Y-%m-%d')))
-            ))
-            if len(insertData) >= 100:
-                db.addData(insertData)
-                insertData = []
+                insertData.append(models.StockKiData(
+                    code = code,
+                    openPrice = df['open'][index],
+                    highPrice = df['high'][index],
+                    closePrice = df['price'][index],
+                    lowPrice = df['low'][index],
+                    volume = df['volume'][index],
+                    date = df['date'][index],
+                    timestamp = int(time.mktime(time.strptime(df['date'][index], '%Y-%m-%d')))
+                ))
+                count1 += 1
+                if len(insertData) >= 500:
+                    db.addData(insertData)
+                    insertData = []
     if insertData:
         db.addData(insertData)
+
 
 def initKiData():
     """
@@ -102,7 +118,6 @@ def initKiData():
         turnover:换手率[注：指数无此项]
     """
     df = ts.get_stock_basics()
-    session = db.getDbsession()
     if df.empty:
         return False
     insertData = []
@@ -132,7 +147,7 @@ def initKiData():
                 date = index,
                 timestamp = int(time.mktime(time.strptime(index, "%Y-%m-%d")))
             ))
-        if len(insertData) >= 100:
+        if len(insertData) >= 500:
             db.addData(insertData)
             insertData = []
     if insertData:
@@ -271,9 +286,37 @@ def get_index():
     except Exception, e:
         helper.log(e)
 
-def calcUpOrDownPercent(beforeDay = 3):
+def calcUpOrDownPercent(beforeDay = 2):
+    "计算最近几天涨跌幅度"
+
+    nowTime = datetime.datetime.now()
+    dayOfWeek = nowTime.isoweekday()
+    delay = beforeDay
+    # 如果跨周末需要除去周末两天
+    if beforeDay >= dayOfWeek:
+        weekCnt = beforeDay / 5 + int(bool(beforeDay % 5))
+        delay = beforeDay + 2 * weekCnt
+    lastTimeStr = (nowTime + datetime.timedelta(days = -delay)).strftime('%Y-%m-%d')
+    nowTimeStr = nowTime.strftime('%Y-%m-%d')
     session = db.getDbsession()
-    allStocks = session.query(models.StockKiData.code, models.StockKiData.close).filter()
+    allStocks = session.query(models.StockKiData.code, models.StockKiData.closePrice, models.StockKiData.date)\
+        .filter(or_(models.StockKiData.date == lastTimeStr, models.StockKiData.date == nowTimeStr)).all()
+    allStocksDict = {}
+    upOrDownPercentDict = {}
+    for item in allStocks:
+        if not allStocksDict.has_key(str(item[2])):
+            allStocksDict[str(item[2])] = {}
+        allStocksDict[str(item[2])][item[0]] = item[1]
+
+    for item in allStocks:
+        if allStocksDict[nowTimeStr].has_key(item[0]) and allStocksDict[nowTimeStr][item[0]] > 0\
+                and allStocksDict[lastTimeStr].has_key(item[0]) and allStocksDict[lastTimeStr][item[0]] > 0:
+            upOrDownPercentDict[item[0]] = round(round(allStocksDict[nowTimeStr][item[0]] - allStocksDict[lastTimeStr][item[0]], 2) / allStocksDict[lastTimeStr][item[0]] * 100, 2)
+
+    ret = sorted(upOrDownPercentDict.items(), key = lambda x:-x[1])
+
+    print ret[:30]
+
 
 if __name__ == '__main__':
-    updateKiData()
+    initKiData()
